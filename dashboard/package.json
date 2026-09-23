@@ -1,0 +1,1 @@
+{"name":"printer-dashboard","private":true,"version":"1.0.0","type":"module","scripts":{"build":"vite build","dev":"vite --host 127.0.0.1"},"dependencies":{"@neondatabase/serverless":"1.1.0","react":"19.1.1","react-dom":"19.1.1"},"devDependencies":{"vite":"7.1.5"}}

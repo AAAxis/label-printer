@@ -1,0 +1,17 @@
+.env
+.venv/
+__pycache__/
+state/
+previews/
+config.json
+*.sqlite*
+dist/
+products/
+.DS_Store
+
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.project-id
+dashboard/.deployment.json
+backups/
+.claude/

@@ -1,0 +1,7 @@
+PRODUCTS + HEARTBEAT UPDATE
+Extract all files. Run SETUP.cmd and enter the unlock code.
+For updates: extract into your existing printer folder. Existing state is retained and installer preserves your printer settings.
+Close the old listener first, then start run-printer.cmd for physical printing or run-preview.cmd for preview.
+Catalog reads Supabase on startup and hourly. Heartbeat runs about every 30 seconds while listening; DYMO/network delays can extend this.
+The heartbeat reports the PC, printer connectivity, and mode. It is not proof that a physical label printed.
+The print queue still uses local SQLite; cloud queue integration is separate.

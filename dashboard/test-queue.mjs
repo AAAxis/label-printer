@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {queueData} from './api/queue-data.js';
+const now=Date.now();
+const p={id:'p',telemetry:{queue:{id:'q',reported_at:new Date(now).toISOString(),counts:{pending:1,submitted:10},jobs:[{id:1,sku:'a',status:'pending',created_at:'2026-09-15'}],blocked_emails:[{id:'e',error:'Unknown SKU'}],blocked_email_count:1}}};
+const fresh=queueData([p],[],now);
+assert.equal(fresh.windowsQueueFresh,true);
+assert.equal(fresh.jobs[0].id,'local:p:q:1');
+assert.equal(fresh.queueCounts.submitted,10);
+assert.equal(fresh.blockedEmailCount,1);
+assert.equal(queueData([p],[],now+100000).windowsQueueFresh,false);
+assert.equal(queueData([],[],now).windowsQueueConnected,false);
+assert.equal(queueData([p],[],now+100000).jobs[0].report_stale,true);
+console.log('Queue reporting tests passed');

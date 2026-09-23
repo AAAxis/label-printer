@@ -1,0 +1,29 @@
+{
+  "recipient": "printer@montigate.com",
+  "allowed_senders": [
+    "dima@holylabs.net",
+    "sku-bot@montigate.com"
+  ],
+  "poll_seconds": 30,
+  "max_labels_per_email": 100,
+  "state_path": "state/queue.sqlite3",
+  "products": {
+    "path": "examples/products.csv",
+    "sku_field": "sku",
+    "name_field": "name",
+    "table": "products",
+    "root_key": ""
+  },
+  "printer": {
+    "name": "DYMO LabelWriter 450",
+    "service_url": "https://localhost:41951/DYMO/DLS/Printing",
+    "ca_file": "",
+    "template_path": "",
+    "label_width_mm": 54,
+    "label_height_mm": 25
+  },
+  "live_sync": {
+    "enabled": false,
+    "interval_seconds": 3600
+  }
+}
