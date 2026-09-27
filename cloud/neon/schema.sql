@@ -98,3 +98,9 @@ begin
  if not found then return; end if;
  return query update public.print_jobs set status='claimed',printer_id=p_printer,claim_token=gen_random_uuid(),lease_until=now()+interval '2 minutes',attempts=attempts+1,updated_at=now() where id=job.id returning *;
 end $$;
+
+-- One row per order notification already sent (print success / problem), so heartbeats never resend it.
+create table if not exists public.print_notifications (
+ key text primary key,
+ created_at timestamptz not null default now()
+);

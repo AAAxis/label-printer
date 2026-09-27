@@ -17,7 +17,10 @@ export function queueData(printers, cloudJobs, now = Date.now()) {
   const counts = {};
   for (const p of reports) for (const [state,n] of Object.entries(p.telemetry.queue.counts || {})) counts[state]=(counts[state]||0)+n;
   for (const j of cloudJobs) counts[j.status]=(counts[j.status]||0)+1;
-  return {jobs, queueCounts:counts, windowsQueueConnected:reports.length > 0,
+  const invoices = reports.flatMap(p => (p.telemetry.queue.invoices || []).map(i => ({...i, printer_id:p.id})))
+    .sort((a,b) => Date.parse(b.updated_at||0)-Date.parse(a.updated_at||0));
+  const invoiceErrors = reports.filter(p => p.telemetry.queue.invoice_error).map(p => ({printer_id:p.id, error:p.telemetry.queue.invoice_error}));
+  return {jobs, invoices, invoiceErrors, queueCounts:counts, windowsQueueConnected:reports.length > 0,
     windowsQueueFresh:reports.some(p => now-Date.parse(p.telemetry.queue.reported_at)<90000),
     blockedEmails:reports.flatMap(p => (p.telemetry.queue.blocked_emails || []).map(e=>({...e,printer_id:p.id}))),
     blockedEmailCount:reports.reduce((n,p)=>n+(p.telemetry.queue.blocked_email_count||0),0)};
