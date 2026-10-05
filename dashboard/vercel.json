@@ -24,5 +24,16 @@
         }
       ]
     }
-  ]
+  ],
+  "crons": [
+    {
+      "path": "/api/sync-catalog",
+      "schedule": "0 2 * * *"
+    }
+  ],
+  "functions": {
+    "api/sync-catalog.js": {
+      "maxDuration": 60
+    }
+  }
 }
