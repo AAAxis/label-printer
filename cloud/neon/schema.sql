@@ -104,3 +104,17 @@ create table if not exists public.print_notifications (
  key text primary key,
  created_at timestamptz not null default now()
 );
+
+-- One row per order Make processed: which lines did NOT go into the SUMIT draft (reported by Make).
+create table if not exists public.print_orders (
+ gmail_id text primary key,
+ subject text not null,
+ sender text,
+ customer text,
+ document_id text,
+ total_lines integer,
+ matched_lines integer,
+ unmatched jsonb not null default '[]'::jsonb,
+ created_at timestamptz not null default now()
+);
+create index if not exists print_orders_subject on public.print_orders(subject, created_at desc);

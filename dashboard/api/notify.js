@@ -62,11 +62,28 @@ async function resend(path,init={}){
   return r.json();
 }
 
+export function missingSection(unmatched){
+  if(!unmatched?.length)return '';
+  return `\n\n⚠️ מוצרים שלא הוקמו בחשבונית (${unmatched.length}):\n`+
+    unmatched.map(l=>`${l.ean||'ללא ברקוד'} — ${l.name||''} × ${l.qty||0}`).join('\n')+
+    '\nיש להוסיף אותם ידנית לטיוטה ב-SUMIT (או לבדוק את כרטיס המוצר).';
+}
+
+// Lines Make could not enter into the SUMIT draft for this order (reported via /api/order-report).
+async function unmatchedFor(orderSubject){
+  if(!orderSubject)return [];
+  try{const r=await query('select unmatched from public.print_orders where subject=$1 order by created_at desc limit 1',[orderSubject]);return r[0]?.unmatched||[]}
+  catch{return []}
+}
+
 async function send(event){
   let subject='';
   try{if(!event.emailId.startsWith('manual:'))subject=(await resend('/emails/receiving/'+encodeURIComponent(event.emailId))).subject||''}catch{}
   subject=subject.replace(/^Labels — /,'');
   const m=message(event,subject);
+  const orderSubject=(event.invoice?.subject||subject).replace(/^(Invoice|Labels) — /,'');
+  const missing=await unmatchedFor(orderSubject);
+  if(missing.length){m.text+=missingSection(missing);m.subject+=` (${missing.length} מוצרים לא הוקמו)`}
   await resend('/emails',{method:'POST',headers:{'Idempotency-Key':'print-notify-'+event.key},body:JSON.stringify({
     from:'Gorilla Label Printer <sku-bot@montigate.com>',to:(process.env.PRINT_NOTIFY_EMAIL||'gorillagrillshop@gmail.com').split(','),
     subject:m.subject,text:m.text})});
