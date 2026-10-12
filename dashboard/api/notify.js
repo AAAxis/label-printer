@@ -92,35 +92,9 @@ async function send(event){
     phone:'+972515473526',email:'dima@holylabs.net',order_number:m.subject,order_id:event.emailId,store:'Gorilla'})}).catch(()=>{});
 }
 
-// Labels are waiting but the PC reports a printing error or a disconnected DYMO.
-export function printerDown(telemetry){
-  const q=telemetry?.queue||{},c=q.counts||{};
-  const waiting=(c.pending||0)+(c.submitting||0);
-  if(!waiting)return null;
-  const offline=(telemetry?.devices||[]).filter(d=>d&&d.connected===false).map(d=>d.name);
-  const reason=q.processing_error||(offline.length?`${offline.join(', ')} לא מחובר`:'');
-  if(!reason)return null;
-  return {key:`printer-down:${new Date().toISOString().slice(0,10)}:${reason.slice(0,120)}`,waiting,reason};
-}
-
-async function sendPrinterDown(d){
-  const subject=`⚠️ מדפסת המדבקות תקועה — ${d.waiting} מדבקות ממתינות`;
-  const text=`⚠️ מדפסת המדבקות (DYMO) לא מדפיסה כרגע. ${d.waiting} מדבקות ממתינות בתור.\nסיבה: ${d.reason}\n\nיש לבדוק במחשב המדפסת שהשירות DYMO Connect פועל ושהמדפסת מחוברת. המדבקות יודפסו אוטומטית ברגע שהבעיה תיפתר.`;
-  await resend('/emails',{method:'POST',headers:{'Idempotency-Key':'print-notify-'+d.key},body:JSON.stringify({
-    from:'Gorilla Label Printer <sku-bot@montigate.com>',to:(process.env.PRINT_NOTIFY_EMAIL||'gorillagrillshop@gmail.com').split(','),subject,text})});
-  await fetch(WHATSAPP,{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(6000),body:JSON.stringify({
-    first_name:'PRINT PROBLEM',last_name:'Label printer',name:text.slice(0,900),
-    phone:'+972515473526',email:'dima@holylabs.net',order_number:subject,order_id:'printer-down',store:'Gorilla'})}).catch(()=>{});
-}
-
 // Claims each event once in the database, so repeated heartbeats never resend it.
 export async function notifyFinished(telemetry){
   if(!process.env.RESEND_API_KEY)return;
-  const down=printerDown(telemetry);
-  if(down){
-    const claimed=await query('insert into public.print_notifications(key) values($1) on conflict do nothing returning key',[down.key]);
-    if(claimed.length){try{await sendPrinterDown(down)}catch{await query('delete from public.print_notifications where key=$1',[down.key])}}
-  }
   for(const event of finishedOrders(telemetry?.queue)){
     const claimed=await query('insert into public.print_notifications(key) values($1) on conflict do nothing returning key',[event.key]);
     if(!claimed.length)continue;

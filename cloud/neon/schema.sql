@@ -118,3 +118,11 @@ create table if not exists public.print_orders (
  created_at timestamptz not null default now()
 );
 create index if not exists print_orders_subject on public.print_orders(subject, created_at desc);
+
+-- One row per printer problem while it lasts (dashboard/api/health.js).
+create table if not exists public.print_alert_state (
+  key text primary key,
+  since timestamptz not null default now(),
+  alerted_at timestamptz,
+  detail text
+);

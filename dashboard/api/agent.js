@@ -1,5 +1,6 @@
 import {query} from './db.js';
 import {notifyFinished} from './notify.js';
+import {checkHealth} from './health.js';
 // The Windows agent authenticates with its own token; the database functions check its hash.
 const calls={
  print_agent_products:b=>['select sku,name from public.print_agent_products($1,$2)',[Number.isInteger(b.p_start)?b.p_start:0]],
@@ -11,6 +12,6 @@ const token=(req.headers.authorization||'').replace(/^Bearer /,'');const call=ca
 if(!call)return res.status(400).json({error:'Unknown call'});if(token.length<32)return res.status(401).json({error:'Invalid agent token'});
 const [text,params]=call(body);
 try{const rows=await query(text,[token,...params]);
-if(body.rpc==='print_agent_heartbeat'){try{await notifyFinished(body.p_telemetry)}catch{}return res.json(rows[0].id)}
+if(body.rpc==='print_agent_heartbeat'){try{await notifyFinished(body.p_telemetry)}catch{}try{await checkHealth()}catch{}return res.json(rows[0].id)}
 return res.json(rows)}
 catch(e){if(e?.code==='42501')return res.status(401).json({error:'Invalid agent token'});return res.status(503).json({error:'Database unavailable'})}}
