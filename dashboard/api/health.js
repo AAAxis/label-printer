@@ -30,17 +30,18 @@ const TEXT={
   needs_name:['⚠️ מדבקות ממתינות — מוצר חסר בקטלוג','✅ המדבקות שחסר להן שם שוחררו']
 };
 
-async function send(subject,text){
+async function send(subject,text,to=(process.env.PRINT_NOTIFY_EMAIL||'gorillagrillshop@gmail.com').split(',')){
   const r=await fetch('https://api.resend.com/emails',{method:'POST',signal:AbortSignal.timeout(6000),
     headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},
     body:JSON.stringify({from:'Gorilla Label Printer <sku-bot@montigate.com>',
-      to:(process.env.PRINT_NOTIFY_EMAIL||'gorillagrillshop@gmail.com').split(','),subject,text})});
+      to,subject,text})});
   if(!r.ok)throw Error('Resend '+r.status);
 }
 
 export async function checkHealth(){
   if(!process.env.RESEND_API_KEY)return;
   const printers=await query('select id,name,status,last_error,last_heartbeat,telemetry from public.print_printers');
+  for(const p of printers)await checkLabelRules(p);
   for(const p of printers)for(const c of conditions(p)){
     const [title,back]=TEXT[c.kind];
     if(c.active){
@@ -58,5 +59,31 @@ export async function checkHealth(){
       const mins=Math.round((Date.now()-new Date(cleared[0].since).getTime())/MIN);
       await send(`${back} — ${c.printer}`,`${back}\n\nהבעיה נמשכה כ-${mins} דקות.`).catch(()=>{});
     }
+  }
+}
+
+// Label rules agreed with the client: never print from a saved .dymo file (its importer text is not from SUMIT),
+// and never print a product whose SUMIT card has no supplier. The PC enforces them; this catches any regression.
+const RULES_FROM='2026-10-12T17:50:00Z';
+export function ruleBreaks(jobs,suppliers){
+  return (jobs||[]).filter(j=>j.status==='submitted'&&j.created_at>=RULES_FROM).flatMap(j=>{
+    const why=[];
+    if(j.label_type==='saved')why.push('הודפס מקובץ מדבקה שמור (טקסט יבואן שלא מ-SUMIT)');
+    if(!suppliers.get(j.sku))why.push('הודפס למרות שאין ספק בכרטיס המוצר ב-SUMIT');
+    return why.length?[{job:j,why}]:[];
+  });
+}
+
+async function checkLabelRules(printer){
+  const jobs=(printer.telemetry?.queue?.jobs||[]).filter(j=>j.status==='submitted'&&j.created_at>=RULES_FROM);
+  if(!jobs.length)return;
+  const rows=await query('select sku,supplier from public.print_products where sku=any($1::text[])',[[...new Set(jobs.map(j=>j.sku))]]);
+  for(const {job,why} of ruleBreaks(jobs,new Map(rows.map(r=>[r.sku,r.supplier])))){
+    const key=`rule-break:${printer.id}:${job.id}`;
+    const claimed=await query('insert into public.print_notifications(key) values($1) on conflict do nothing returning key',[key]);
+    if(!claimed.length)continue;
+    try{await send(`🚫 מדבקה הודפסה בניגוד לכללים — ${job.sku}`,
+      `מדבקה ${job.sku} (${job.product_name||''}) הודפסה ב-${job.created_at}:\n${why.join('\n')}\n\nיש לעדכן את המחשב של המדפסת. הכללים: רק תבנית אחת עם ספק מ-SUMIT; מוצר בלי ספק — לא מודפס.`,['dima@holylabs.net'])}
+    catch{await query('delete from public.print_notifications where key=$1',[key])}
   }
 }
