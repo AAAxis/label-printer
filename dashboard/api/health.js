@@ -2,7 +2,7 @@ import {query} from './db.js';
 // Printer health alerts. Each problem gets one row in print_alert_state while it lasts:
 // alert once after it has lasted long enough, send one "back to normal" when it clears.
 // Runs on every heartbeat and from /api/watchdog (which is what notices missing heartbeats).
-const WHATSAPP='https://n8n.tigermedia.co.il/webhook/tg-new-order';
+// Email only: the TigerMedia WhatsApp template renders as a customer order receipt.
 const MIN=60000;
 
 export function conditions(printer,now=Date.now()){
@@ -30,15 +30,12 @@ const TEXT={
   needs_name:['⚠️ מדבקות ממתינות — מוצר חסר בקטלוג','✅ המדבקות שחסר להן שם שוחררו']
 };
 
-async function send(subject,text,ok){
+async function send(subject,text){
   const r=await fetch('https://api.resend.com/emails',{method:'POST',signal:AbortSignal.timeout(6000),
     headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},
     body:JSON.stringify({from:'Gorilla Label Printer <sku-bot@montigate.com>',
       to:(process.env.PRINT_NOTIFY_EMAIL||'gorillagrillshop@gmail.com').split(','),subject,text})});
   if(!r.ok)throw Error('Resend '+r.status);
-  await fetch(WHATSAPP,{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(6000),body:JSON.stringify({
-    first_name:ok?'PRINT OK':'PRINT PROBLEM',last_name:'Label printer',name:text.slice(0,900),
-    phone:'+972515473526',email:'dima@holylabs.net',order_number:subject,order_id:'printer-health',store:'Gorilla'})}).catch(()=>{});
 }
 
 export async function checkHealth(){
@@ -53,13 +50,13 @@ export async function checkHealth(){
       const claimed=await query(`update public.print_alert_state set alerted_at=now()
         where key=$1 and alerted_at is null and since<=now()-make_interval(secs=>$2) returning since`,[c.key,c.after/1000]);
       if(!claimed.length)continue;
-      try{await send(`${title} — ${c.printer}`,`${title}\n\n${c.detail}\n\nההתראה נשלחת פעם אחת; תישלח הודעה נוספת כשהבעיה תיפתר.`,false)}
+      try{await send(`${title} — ${c.printer}`,`${title}\n\n${c.detail}\n\nההתראה נשלחת פעם אחת; תישלח הודעה נוספת כשהבעיה תיפתר.`)}
       catch{await query('update public.print_alert_state set alerted_at=null where key=$1',[c.key])}
     }else{
       const cleared=await query('delete from public.print_alert_state where key=$1 returning alerted_at,since',[c.key]);
       if(!cleared[0]?.alerted_at)continue;
       const mins=Math.round((Date.now()-new Date(cleared[0].since).getTime())/MIN);
-      await send(`${back} — ${c.printer}`,`${back}\n\nהבעיה נמשכה כ-${mins} דקות.`,true).catch(()=>{});
+      await send(`${back} — ${c.printer}`,`${back}\n\nהבעיה נמשכה כ-${mins} דקות.`).catch(()=>{});
     }
   }
 }
