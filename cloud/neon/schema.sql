@@ -70,13 +70,17 @@ begin
  return result;
 end $$;
 
+alter table public.print_products add column if not exists supplier text;
+
+-- Return type changed (supplier added), so the function is dropped first.
+drop function if exists public.print_agent_products(text,integer);
 create or replace function public.print_agent_products(p_token text,p_start integer default 0)
-returns table(sku text,name text) language plpgsql set search_path=pg_catalog,public as $$
+returns table(sku text,name text,supplier text) language plpgsql set search_path=pg_catalog,public as $$
 begin
  if length(p_token)<32 or not exists(select 1 from public.print_printers where token_hash=encode(sha256(convert_to(p_token,'UTF8')),'hex')) then
  raise exception 'Invalid agent token' using errcode='42501'; end if;
  if p_start<0 then raise exception 'Invalid offset'; end if;
- return query select p.sku,p.name from public.print_products p where p.active order by p.sku offset p_start limit 1000;
+ return query select p.sku,p.name,p.supplier from public.print_products p where p.active order by p.sku offset p_start limit 1000;
 end $$;
 
 -- Claims serialize per printer and lock a job so two workers cannot claim it.

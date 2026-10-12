@@ -33,6 +33,49 @@ def fetch_webhook_products(url, token, request_page=None):
     return collect_products(lambda start, size: transport({'token': token, 'startIndex': start}))
 
 
+def fetch_webhook_suppliers(url, token, request_page=None):
+    """SKU -> supplier from the SUMIT CRM product cards (property "ספק"), via the same webhook in mode=cards."""
+    def send_page(payload):
+        request = Request(url, data=json.dumps(payload).encode(), headers={'Content-Type': 'application/json'})
+        try:
+            with urlopen(request, timeout=60) as response:
+                return json.load(response)
+        except Exception:
+            raise ValueError('SUMIT product-card webhook failed') from None
+    transport = request_page or send_page
+    return collect_suppliers(lambda start: transport({'token': token, 'startIndex': start, 'mode': 'cards'}))
+
+
+def card_value(value):
+    if isinstance(value, list):
+        value = next((v for v in value if isinstance(v, str) and v.strip()), '')
+    return ' '.join(value.split()) if isinstance(value, str) else ''
+
+
+def collect_suppliers(request_page):
+    suppliers, conflicting, start = {}, set(), 0
+    for _ in range(1000):
+        response = request_page(start)
+        data = response.get('Data') if isinstance(response, dict) else None
+        if not isinstance(data, dict) or response.get('Status') not in (0, 'Success', 'Success (0)') or not isinstance(data.get('Entities'), list):
+            raise ValueError('SUMIT returned an invalid product-card response')
+        for card in data['Entities']:
+            sku, supplier = card_value(card.get('Accounting_SKU')), card_value(card.get('ספק'))
+            if not sku or not supplier or sku in conflicting:
+                continue
+            if sku in suppliers and suppliers[sku] != supplier:
+                del suppliers[sku]
+                conflicting.add(sku)
+                continue
+            suppliers[sku] = supplier[:120]
+        if not data.get('HasNextPage'):
+            return suppliers
+        if not data['Entities']:
+            raise ValueError('SUMIT product-card pagination did not advance')
+        start += len(data['Entities'])
+    raise ValueError('SUMIT product-card pagination limit reached')
+
+
 def fetch_products(company_id, api_key, request_page=None):
     if not str(company_id).isdigit() or int(company_id) <= 0:
         raise ValueError('Set SUMIT_COMPANY_ID to the numeric company ID from SUMIT')
