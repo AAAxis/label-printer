@@ -5,7 +5,6 @@ const ACTIVE=new Set(['pending','submitting']);
 const OK=new Set(['submitted']);
 const INVOICE_FINAL=new Set(['submitted','held','failed','uncertain']);
 const INVOICE_STATUS={submitted:'נשלחה למדפסת Brother',held:'נעצרה (מייל לא תקין)',failed:'ההדפסה נכשלה',uncertain:'לא ברור אם הודפסה (נותק באמצע)'};
-const WHATSAPP='https://n8n.tigermedia.co.il/webhook/tg-new-order';
 
 export function finishedOrders(queue){
   const byEmail=new Map();
@@ -84,12 +83,10 @@ async function send(event){
   const orderSubject=(event.invoice?.subject||subject).replace(/^(Invoice|Labels) — /,'');
   const missing=await unmatchedFor(orderSubject);
   if(missing.length){m.text+=missingSection(missing);m.subject+=` (${missing.length} מוצרים לא הוקמו)`}
+  // Owner gets the email; Dima gets a hidden copy (no WhatsApp: that template renders as a customer receipt).
   await resend('/emails',{method:'POST',headers:{'Idempotency-Key':'print-notify-'+event.key},body:JSON.stringify({
     from:'Gorilla Label Printer <sku-bot@montigate.com>',to:(process.env.PRINT_NOTIFY_EMAIL||'gorillagrillshop@gmail.com').split(','),
-    subject:m.subject,text:m.text})});
-  await fetch(WHATSAPP,{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(6000),body:JSON.stringify({
-    first_name:event.ok?'PRINT OK':'PRINT PROBLEM',last_name:'Label printer',name:m.text.slice(0,900),
-    phone:'+972515473526',email:'dima@holylabs.net',order_number:m.subject,order_id:event.emailId,store:'Gorilla'})}).catch(()=>{});
+    bcc:['dima@holylabs.net'],subject:m.subject,text:m.text})});
 }
 
 // Claims each event once in the database, so repeated heartbeats never resend it.

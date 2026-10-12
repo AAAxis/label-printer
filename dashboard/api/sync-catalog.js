@@ -1,8 +1,7 @@
 import {query} from './db.js';
 import {equal} from './session.js';
 // Daily Vercel Cron: copies the SUMIT catalog (via the Make webhook) into Neon, same rules as cloud/sync_catalog.py.
-// A failure keeps the existing catalog and alerts by WhatsApp.
-const WHATSAPP='https://n8n.tigermedia.co.il/webhook/tg-new-order';
+// A failure keeps the existing catalog and alerts Dima by email.
 
 async function page(startIndex,mode){
   const r=await fetch(process.env.SUMIT_WEBHOOK_URL,{method:'POST',headers:{'Content-Type':'application/json'},
@@ -71,9 +70,10 @@ export default async function handler(req,res){
     await query('update public.print_products set active=false where active and not (sku=any($1::text[]))',[skus]);
     return res.json({synced:skus.length,withSupplier:sups.filter(Boolean).length,suppliersLoaded:suppliers!==null,skipped,ambiguous});
   }catch(e){
-    await fetch(WHATSAPP,{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(6000),body:JSON.stringify({
-      first_name:'Automation ERROR',last_name:'Catalog sync',name:`סנכרון קטלוג SUMIT היומי נכשל — הקטלוג הקודם נשמר. ${String(e.message).slice(0,200)}`,
-      phone:'+972515473526',email:'dima@holylabs.net',order_number:'ERROR — catalog sync',order_id:'catalog-sync',store:'Gorilla'})}).catch(()=>{});
+    await fetch('https://api.resend.com/emails',{method:'POST',signal:AbortSignal.timeout(6000),
+      headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'catalog-sync-failed-'+new Date().toISOString().slice(0,10)},
+      body:JSON.stringify({from:'Gorilla Automation <sku-bot@montigate.com>',to:['dima@holylabs.net'],subject:'ERROR — catalog sync',
+        text:`סנכרון קטלוג SUMIT היומי נכשל — הקטלוג הקודם נשמר. ${String(e.message).slice(0,200)}`})}).catch(()=>{});
     return res.status(502).json({error:'Catalog sync failed; existing catalog preserved'});
   }
 }
