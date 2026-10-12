@@ -15,3 +15,5 @@ dashboard/.project-id
 dashboard/.deployment.json
 backups/
 .claude/
+products_without_supplier.csv
+*.xlsx

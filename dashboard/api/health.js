@@ -14,7 +14,8 @@ export function conditions(printer,now=Date.now()){
     detail:`לא התקבל דיווח מהמחשב של המדפסת מאז ${new Date(last).toLocaleString('he-IL',{timeZone:'Asia/Jerusalem'})} (המחשב כבוי, במצב שינה, או שתוכנת המדפסת נעצרה).`}];
   // Without fresh heartbeats the other readings are stale: keep their state as it is.
   if(offline)return list;
-  const waiting=(c.pending||0)+(c.submitting||0);
+  // Only labels still waiting to print count; with nothing pending a DYMO restart is not worth an alert.
+  const waiting=Number(c.pending)||0;
   list.push({kind:'stuck',active:printer.status!=='printing'&&waiting>0,after:15*MIN,
     detail:`${waiting} מדבקות ממתינות. מצב המדפסת: ${printer.status||'לא ידוע'}${printer.last_error||q.processing_error?` — ${printer.last_error||q.processing_error}`:''}`});
   const skus=[...new Set((q.jobs||[]).filter(j=>j.status==='needs_name').map(j=>j.sku))];
