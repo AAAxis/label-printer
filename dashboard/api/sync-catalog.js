@@ -1,4 +1,4 @@
-import {query} from './db.js';
+import {query} from '../lib/db.js';
 import {equal} from './session.js';
 // Daily Vercel Cron: copies the SUMIT catalog (via the Make webhook) into Neon, same rules as cloud/sync_catalog.py.
 // A failure keeps the existing catalog and alerts Dima by email.

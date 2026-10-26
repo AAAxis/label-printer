@@ -1,5 +1,5 @@
 import {equal} from './session.js';
-import {checkHealth} from './health.js';
+import {checkHealth} from '../lib/health.js';
 // Called every few minutes by an external scheduler (Make), so a PC that stops sending heartbeats is still noticed.
 export default async function handler(req,res){
   res.setHeader('Cache-Control','no-store');

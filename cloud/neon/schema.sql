@@ -130,3 +130,33 @@ create table if not exists public.print_alert_state (
   alerted_at timestamptz,
   detail text
 );
+
+-- Shift order report (dashboard/api/shift-report.js). One row per calendar shift; orders printed per day.
+create table if not exists public.shift_reports (
+  id uuid primary key default gen_random_uuid(),
+  shift_key text unique not null,
+  shift_start timestamptz not null,
+  shift_end timestamptz,
+  workers text[] not null default '{}',
+  token text not null,
+  status text not null default 'sent',      -- sent | printed | failed | unconfirmed | empty
+  attempts integer not null default 0,
+  orders jsonb not null default '[]'::jsonb,  -- snapshot used for the PDF, so a reprint is identical
+  created_at timestamptz not null default now(),
+  printed_at timestamptz
+);
+create table if not exists public.shift_report_orders (
+  order_id text not null,
+  day date not null,
+  store text,
+  order_name text,
+  report_id uuid references public.shift_reports(id) on delete cascade,
+  fingerprint text not null,
+  printed_at timestamptz not null default now(),
+  primary key (order_id, day)
+);
+create table if not exists public.shift_calendar (
+  id integer primary key default 1,
+  fetched_at timestamptz not null,
+  shifts jsonb not null
+);

@@ -34,6 +34,10 @@
   "functions": {
     "api/sync-catalog.js": {
       "maxDuration": 60
+    },
+    "api/shift-report.js": {
+      "maxDuration": 60,
+      "includeFiles": "lib/fonts/**"
     }
   }
 }

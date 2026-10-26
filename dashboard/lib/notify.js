@@ -38,6 +38,11 @@ export function message(event,subject){
   const title=subject||event.emailId;
   if(event.invoice){
     const i=event.invoice,t=(i.subject||title).replace(/^Invoice — /,'');
+    if(t.startsWith('דוח משמרת')){
+      const name=t.replace(/\s*\[[^\]]*\]\s*$/,'');
+      return event.ok?{subject:`🖨️ ${name} הודפס`,text:`🖨️ ${name} נשלח למדפסת Brother במחסן.\n\n(המדפסת אישרה קבלה; יש לוודא שהדף יצא פיזית.)`}
+        :{subject:`⚠️ ${name} לא הודפס`,text:`⚠️ ${name}: ${INVOICE_STATUS[i.status]||i.status}.${i.error?`\nסיבה: ${i.error}`:''}\nאפשר להדפיס שוב מהדשבורד.`};
+    }
     const text=`${event.ok?'🧾':'⚠️'} טיוטת החשבונית ${i.document_id?`(מסמך ${i.document_id}) `:''}עבור "${t}": ${INVOICE_STATUS[i.status]||i.status}.`+
       (i.error?`\nסיבה: ${i.error}`:'')+(event.ok?'\n\n(המדפסת אישרה קבלה; יש לוודא שהדף יצא פיזית.)':'\nהחשבונית לא תודפס שוב אוטומטית — יש להדפיס ידנית מ-SUMIT.');
     return {subject:`${event.ok?'🧾 חשבונית הודפסה':'⚠️ בעיה בהדפסת חשבונית'} — ${t}`,text};

@@ -1,6 +1,6 @@
-import {query} from './db.js';
-import {notifyFinished} from './notify.js';
-import {checkHealth} from './health.js';
+import {query} from '../lib/db.js';
+import {notifyFinished} from '../lib/notify.js';
+import {checkHealth} from '../lib/health.js';
 // The Windows agent authenticates with its own token; the database functions check its hash.
 const calls={
  print_agent_products:b=>['select sku,name,supplier from public.print_agent_products($1,$2)',[Number.isInteger(b.p_start)?b.p_start:0]],
