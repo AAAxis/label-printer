@@ -17,3 +17,5 @@ backups/
 .claude/
 products_without_supplier.csv
 *.xlsx
+
+.env.*

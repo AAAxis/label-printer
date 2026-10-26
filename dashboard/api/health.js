@@ -42,6 +42,7 @@ export async function checkHealth(){
   if(!process.env.RESEND_API_KEY)return;
   const printers=await query('select id,name,status,last_error,last_heartbeat,telemetry from public.print_printers');
   for(const p of printers)await checkLabelRules(p);
+  for(const p of printers)await checkProgress(p);
   for(const p of printers)for(const c of conditions(p)){
     const [title,back]=TEXT[c.kind];
     if(c.active){
@@ -86,4 +87,27 @@ async function checkLabelRules(printer){
       `מדבקה ${job.sku} (${job.product_name||''}) הודפסה ב-${job.created_at}:\n${why.join('\n')}\n\nיש לעדכן את המחשב של המדפסת. הכללים: רק תבנית אחת עם ספק מ-SUMIT; מוצר בלי ספק — לא מודפס.`,['dima@holylabs.net'])}
     catch{await query('delete from public.print_notifications where key=$1',[key])}
   }
+}
+
+// Labels pending but none printed for 15 minutes, whatever status the PC reports (a "printing" PC stalled for 18h on 25/10).
+// The row's detail holds the submitted count; any change counts as progress and restarts the clock.
+async function checkProgress(printer){
+  const c=printer.telemetry?.queue?.counts||{},pending=Number(c.pending)||0,done=String(Number(c.submitted)||0);
+  const key=`${printer.id}:noprogress`,name=printer.name||'Label printer';
+  const fresh=printer.last_heartbeat&&Date.now()-new Date(printer.last_heartbeat).getTime()<=15*MIN;
+  if(!fresh)return; // a silent PC is the 'offline' alert's job
+  const [row]=await query('select since,alerted_at,detail from public.print_alert_state where key=$1',[key]);
+  const recover=async()=>{if(row?.alerted_at)await send(`✅ המדבקות חזרו להדפיס — ${name}`,`✅ המדבקות חזרו להדפיס.\n\nהעיכוב נמשך כ-${Math.round((Date.now()-new Date(row.since).getTime())/MIN)} דקות.`).catch(()=>{})};
+  if(!pending){if(row){await query('delete from public.print_alert_state where key=$1',[key]);await recover()}return}
+  if(!row||row.detail!==done){
+    await query(`insert into public.print_alert_state(key,since,detail) values($1,now(),$2)
+      on conflict(key) do update set since=now(),detail=excluded.detail,alerted_at=null`,[key,done]);
+    if(row)await recover();
+    return;
+  }
+  const claimed=await query(`update public.print_alert_state set alerted_at=now()
+    where key=$1 and alerted_at is null and since<=now()-interval '15 minutes' returning since`,[key]);
+  if(!claimed.length)return;
+  try{await send(`⚠️ מדבקות ממתינות ולא מודפסות — ${name}`,`⚠️ ${pending} מדבקות ממתינות להדפסה, ואף מדבקה לא הודפסה ב-15 הדקות האחרונות (מצב המחשב: ${printer.status||'לא ידוע'}).\n\nיש לבדוק במחשב המדפסת: שהמדפסת דלוקה, שיש גליל מדבקות, ושתוכנת ההדפסה רצה.\n\nההתראה נשלחת פעם אחת; תישלח הודעה כשההדפסה תחזור.`)}
+  catch{await query('update public.print_alert_state set alerted_at=null where key=$1',[key])}
 }
