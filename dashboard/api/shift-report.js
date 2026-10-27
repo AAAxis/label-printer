@@ -62,7 +62,7 @@ function reportDoc(shift,orders,generatedAt,reprint=false){
 async function sendToPrinter(report,shift,orders,{reprint=false}={}){
   const pdf=await renderShiftPdf(reportDoc(shift,orders,`${ddmm(Date.now())} ${hhmm(Date.now())}`,reprint));
   const subject=`Invoice — דוח משמרת ${ddmm(shift.start)} ${hhmm(shift.start)} [${report.token}${reprint?'-R'+Date.now().toString(36):''}]`;
-  await email({to:['printer@montigate.com'],subject,text:`Shift report ${report.token}`,
+  await email({to:['printer@montigate.com'],subject,text:`DocumentID=${Math.floor(Date.now()/1000)}\nShift report ${report.token}`,
     attachments:[{filename:`shift-${dayKey(shift.start)}-${hhmm(shift.start).replace(':','')}.pdf`,content:Buffer.from(pdf).toString('base64')}]},
     reprint?null:`shift-report-${report.token}-${report.attempts}`);
   return subject;
@@ -89,6 +89,7 @@ async function printShift(shift,now){
     on conflict(shift_key) do update set status='sent',attempts=shift_reports.attempts+1,orders=excluded.orders,created_at=now()
     returning id,token,attempts`,[shift.key,shift.start,shift.end,shift.workers,token,JSON.stringify(orders)]);
   // Orders count as printed from the moment the report is sent; a failed print releases them again.
+  // The printer PC only accepts "Invoice —" emails with a DocumentID= line (see sendToPrinter).
   for(const o of orders)await query(`insert into public.shift_report_orders(order_id,day,store,order_name,report_id,fingerprint)
     values($1,$2,$3,$4,$5,$6) on conflict(order_id,day) do update set report_id=excluded.report_id,fingerprint=excluded.fingerprint,printed_at=now()`,
     [o.id,today,o.store,o.name,rep.id,o.fingerprint]);
@@ -112,7 +113,7 @@ async function confirmPrints(){
     if(hit&&['held','failed','uncertain'].includes(hit.status)){
       await query('delete from public.shift_report_orders where report_id=$1',[r.id]);
       await query(`update public.shift_reports set status='failed' where id=$1`,[r.id]);
-      await notifyManager(`⚠️ דוח המשמרת לא הודפס — ${ddmm(r.shift_start)} ${hhmm(r.shift_start)}`,
+      if(r.attempts>=MAX_ATTEMPTS)await notifyManager(`⚠️ דוח המשמרת לא הודפס — ${ddmm(r.shift_start)} ${hhmm(r.shift_start)}`,
         `המחשב במחסן דיווח שהדפסת דוח המשמרת נכשלה (${hit.status}${hit.error?': '+hit.error:''}).\n${r.attempts<MAX_ATTEMPTS?'ננסה להדפיס שוב בבדיקה הבאה.':'לא ננסה שוב אוטומטית — אפשר להדפיס שוב מהדשבורד.'}`,
         `shift-failed-${r.token}-${r.attempts}`);
       continue;

@@ -40,8 +40,8 @@ export function message(event,subject){
     const i=event.invoice,t=(i.subject||title).replace(/^Invoice — /,'');
     if(t.startsWith('דוח משמרת')){
       const name=t.replace(/\s*\[[^\]]*\]\s*$/,'');
-      return event.ok?{subject:`🖨️ ${name} הודפס`,text:`🖨️ ${name} נשלח למדפסת Brother במחסן.\n\n(המדפסת אישרה קבלה; יש לוודא שהדף יצא פיזית.)`}
-        :{subject:`⚠️ ${name} לא הודפס`,text:`⚠️ ${name}: ${INVOICE_STATUS[i.status]||i.status}.${i.error?`\nסיבה: ${i.error}`:''}\nאפשר להדפיס שוב מהדשבורד.`};
+      // Failures of a shift report are retried and reported once by api/shift-report.js, so only success is mailed here.
+      return event.ok?{subject:`🖨️ ${name} הודפס`,text:`🖨️ ${name} נשלח למדפסת Brother במחסן.\n\n(המדפסת אישרה קבלה; יש לוודא שהדף יצא פיזית.)`}:null;
     }
     const text=`${event.ok?'🧾':'⚠️'} טיוטת החשבונית ${i.document_id?`(מסמך ${i.document_id}) `:''}עבור "${t}": ${INVOICE_STATUS[i.status]||i.status}.`+
       (i.error?`\nסיבה: ${i.error}`:'')+(event.ok?'\n\n(המדפסת אישרה קבלה; יש לוודא שהדף יצא פיזית.)':'\nהחשבונית לא תודפס שוב אוטומטית — יש להדפיס ידנית מ-SUMIT.');
@@ -85,6 +85,7 @@ async function send(event){
   try{if(!event.emailId.startsWith('manual:'))subject=(await resend('/emails/receiving/'+encodeURIComponent(event.emailId))).subject||''}catch{}
   subject=subject.replace(/^Labels — /,'');
   const m=message(event,subject);
+  if(!m)return;
   const orderSubject=(event.invoice?.subject||subject).replace(/^(Invoice|Labels) — /,'');
   const missing=await unmatchedFor(orderSubject);
   if(missing.length){m.text+=missingSection(missing);m.subject+=` (${missing.length} מוצרים לא הוקמו)`}
