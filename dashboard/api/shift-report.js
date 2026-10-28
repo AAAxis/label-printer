@@ -144,6 +144,15 @@ async function reprint(id){
   const [r]=await query('select * from public.shift_reports where id=$1',[id]);
   if(!r||!r.orders?.length)throw Error('Report not found or empty');
   await sendToPrinter(r,{start:r.shift_start,end:r.shift_end,workers:r.workers},r.orders,{reprint:true});
+  // A reprint of a report that never printed puts its orders on paper for the first time: record them,
+  // so the next shift does not print them again (#3808 appeared twice on 27/10 because of this).
+  if(['failed','unconfirmed'].includes(r.status)){
+    const today=dayKey(Date.now());
+    for(const o of r.orders)await query(`insert into public.shift_report_orders(order_id,day,store,order_name,report_id,fingerprint)
+      values($1,$2,$3,$4,$5,$6) on conflict(order_id,day) do update set report_id=excluded.report_id,fingerprint=excluded.fingerprint,printed_at=now()`,
+      [o.id,today,o.store,o.name,r.id,o.fingerprint]);
+    await query(`update public.shift_reports set status='printed',printed_at=now() where id=$1`,[r.id]);
+  }
 }
 
 export default async function handler(req,res){

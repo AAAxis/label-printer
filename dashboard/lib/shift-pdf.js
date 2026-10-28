@@ -8,8 +8,17 @@ const bidi=bidiFactory();
 const FONT={regular:new URL('./fonts/Heebo-Regular.ttf',import.meta.url),bold:new URL('./fonts/Heebo-Bold.ttf',import.meta.url)};
 const W=595.28,H=841.89,M=36,INK=rgb(0.07,0.07,0.07),SOFT=rgb(0.38,0.38,0.38),LINE=rgb(0.72,0.72,0.72);
 
+// Emojis and symbols outside the font would print as empty boxes; they are also two UTF-16 units each,
+// which throws the bidi reordering out of step (it once turned "23" into "32"). Keep only printable text.
+export function clean(text){
+  return String(text??'').normalize('NFC')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g,'')
+    .replace(/\p{Extended_Pictographic}|[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F\u20E3]/gu,'')
+    .replace(/[^\u0000-\uFFFF]/gu,'')
+    .replace(/\s+/g,' ').replace(/^[\s–-]+|[\s–-]+$/g,'').trim();
+}
 export function visual(text){
-  const s=String(text??'');
+  const s=clean(text);
   const levels=bidi.getEmbeddingLevels(s,'rtl');
   const chars=[...s];
   // Brackets inside right-to-left runs must face the other way once reversed (bidi-js's own map comes back empty here).
